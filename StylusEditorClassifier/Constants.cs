@@ -17,6 +17,13 @@ namespace StylusEditorClassifier
         public const string SingleLineCommentClassType = "stylus.singlelineComment";
         public const string MultiLineCommentClassType = "stylus.multilineComment";
 
+
+        public static readonly List<SpecialSymbol> SpecialSymbols = new List<SpecialSymbol>
+        {
+            new SpecialSymbol(){Symbol = "//", Include = IncludeType.IncludeToRight, StartsWithZero = false},
+            new SpecialSymbol(){Symbol = "/*", Include = IncludeType.IncludeToRight, StartsWithZero = false},
+        };
+
         public static readonly HashSet<String> Keywords = new HashSet<String>()
         {
             "accelerator",

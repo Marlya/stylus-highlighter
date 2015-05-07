@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.Linq;
 using System.Reflection.Emit;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Text;
@@ -154,11 +155,45 @@ namespace StylusEditorClassifier
             return true;
         }
 
+        
+
         private Boolean CheckForSpecialSymbols(String spanText, ref Int32 startIndex,
             ITextSnapshot snapshot, ref List<ClassificationSpan> spans, ref State currentState)
         {
             var str = spanText;
 
+            List<SpecialSymbol> symbols = new List<SpecialSymbol> 
+            { "//", "/*",  ":" };
+            //List<String> symbols2 = new List<string> { "(", ")" };
+            //List<String> symbols3 = new List<string> { "*/", };
+
+            String symbol = symbols.FirstOrDefault(str.Contains);
+            if (symbol == null)
+            {
+                return false;
+            }
+
+            if (currentState != State.IsComment && !isMultiComment && str.Trim().IndexOf(symbol) > 0)
+            {
+                var index = str.IndexOf(symbol);
+                var res1 = this.GetClassificationSpan(str.Substring(0, index), 0, ref startIndex,
+                    snapshot, ref spans, ref currentState);
+                var res2 = this.GetClassificationSpan(str.Substring(index), 0, ref startIndex,
+                    snapshot, ref spans, ref currentState);
+                return res1 || res2;
+            }
+
+
+            //if (currentState != State.IsComment && !isMultiComment && str.Trim().IndexOf("//") > 0)
+            //{
+            //    var comment_start = str.IndexOf("//");
+            //    var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
+            //        snapshot, ref spans, ref currentState);
+            //    var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
+            //        snapshot, ref spans, ref currentState);
+            //    return res1 || res2;
+            //}
+            
             if (currentState!=State.IsComment && !isMultiComment && !str.EndsWith(":") && str.IndexOf(":") > 0)
             {
                 var start = str.IndexOf(":");
@@ -168,6 +203,8 @@ namespace StylusEditorClassifier
                     snapshot, ref spans, ref currentState);
                 return res1 || res2;
             }
+
+            
 
             if (currentState != State.IsComment && !isMultiComment && str.Length > 1 && str.IndexOf("(") >= 0)
             {
@@ -209,15 +246,7 @@ namespace StylusEditorClassifier
                 return res1 || res2 || res3;
             }
 
-            if (currentState!=State.IsComment && !isMultiComment && str.Trim().IndexOf("//") > 0)
-            {
-                var comment_start = str.IndexOf("//");
-                var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
-                    snapshot, ref spans, ref currentState);
-                var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
-                    snapshot, ref spans, ref currentState);
-                return res1 || res2;
-            }
+            
 
             if (currentState != State.IsComment && !isMultiComment && str.IndexOf("/*") > 0 && !str.StartsWith("'"))
             {
