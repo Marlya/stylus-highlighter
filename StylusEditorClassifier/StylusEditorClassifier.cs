@@ -71,6 +71,7 @@ namespace StylusEditorClassifier
             Boolean isComment = false;
 
             Boolean afterKeyword = false;
+
             foreach (var originals_str in parts)
             {
                 this.GetClassificationSpan(originals_str, 1, ref index, ref isComment,
@@ -95,12 +96,79 @@ namespace StylusEditorClassifier
                 return false;
             }
 
+            Boolean res = this.CheckForSpecialSymbols(str, ref startIndex, ref isComment, ref afterKeyword, snapshot, ref spans);
+
+            if(res) return true;
+
+            IClassificationType classificationType = null;
+            
+            #region detect Classification Type
+            
+            if (!afterKeyword && !isComment && !isMultiComment && (str.Equals("(") || str.Equals(")")))
+            {
+                classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
+            }
+            else if (!afterKeyword && !isComment && !isMultiComment && Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
+            {
+                classificationType = _registry.GetClassificationType(Constants.Keyword2ClassType);
+            }
+            else if (!afterKeyword && !isComment && !isMultiComment 
+                && 
+                    (
+                        Constants.Keywords.Contains(str.Trim().Trim(':'))
+                        || (str.Trim().StartsWith("-webkit-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-webkit-", "")))
+                        || (str.Trim().StartsWith("-moz-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-moz-", "")))
+                        || (str.Trim().StartsWith("-o-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-o-", "")))
+                        || (str.Trim().StartsWith("-ms-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-ms-", "")))
+                    )
+                )
+            {
+                classificationType = _registry.GetClassificationType(Constants.KeywordClassType);
+                afterKeyword = !str.Contains("//n");
+            }
+            else if (!isMultiComment && (str.Trim().StartsWith("//") || isComment))
+            {
+                classificationType =  _registry.GetClassificationType(Constants.SingleLineCommentClassType);
+                isComment = !str.Contains("//n");
+                afterKeyword = false;
+            }
+            else if (!isComment && (isMultiComment || str.StartsWith("/*")))
+            {
+                classificationType =   _registry.GetClassificationType(Constants.MultiLineCommentClassType);
+                isMultiComment = !str.Contains("*/");
+            }
+            else if (afterKeyword)
+            {
+                classificationType = _registry.GetClassificationType(Constants.ContentClassType);
+            }
+            else
+            {
+                classificationType =  _registry.GetClassificationType(Constants.DefaultClassType);
+            }
+            #endregion
+
+            span = new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
+                         classificationType);
+
+            startIndex += str.Length + spaceSize;
+            
+            spans.Add(span);
+            return true;
+        }
+
+        private Boolean CheckForSpecialSymbols(String spanText, ref Int32 startIndex,
+            ref Boolean isComment,
+            ref Boolean afterKeyword,
+            ITextSnapshot snapshot, ref List<ClassificationSpan> spans)
+        {
+            var str = spanText;
+
             if (!isComment && !isMultiComment && !str.EndsWith(":") && str.IndexOf(":") > 0)
             {
                 var start = str.IndexOf(":");
-                var res1 = this.GetClassificationSpan(str.Substring(0, start+1), 0, ref startIndex,
+                var res1 = this.GetClassificationSpan(str.Substring(0, start + 1), 0, ref startIndex,
                     ref isComment, ref afterKeyword, snapshot, ref spans);
-                var res2 = this.GetClassificationSpan(str.Substring(start+1), 0, ref startIndex,
+                var res2 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
                     ref isComment, ref afterKeyword, snapshot, ref spans);
                 return res1 || res2;
             }
@@ -108,7 +176,7 @@ namespace StylusEditorClassifier
             if (!isComment && !isMultiComment && str.Length > 1 && str.IndexOf("(") >= 0)
             {
                 var start = str.IndexOf("(");
-                Boolean res1 =false;
+                Boolean res1 = false;
                 if (start > 0)
                 {
                     res1 = this.GetClassificationSpan(str.Substring(0, start), 0, ref startIndex,
@@ -153,11 +221,6 @@ namespace StylusEditorClassifier
                 var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
                     ref isComment, ref afterKeyword, snapshot, ref spans);
                 return res1 || res2;
-                //comment_start = str.IndexOf("//");
-                //if (comment_start > 0)
-                //{
-                //    str = str.Substring(0, comment_start);
-                //}
             }
 
             if (!isComment && !isMultiComment && str.IndexOf("/*") > 0 && !str.StartsWith("'"))
@@ -168,106 +231,18 @@ namespace StylusEditorClassifier
                 var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
                     ref isComment, ref afterKeyword, snapshot, ref spans);
                 return res1 || res2;
-                //comment_start = str.IndexOf("/*");
-                //if (comment_start > 0)
-                //{
-                //    str = str.Substring(0, comment_start);
-                //}
             }
 
             if (isMultiComment && str.Length > 2 && !str.EndsWith("*/") && str.Contains("*/"))
             {
                 var comment_end = str.IndexOf("*/");
-                var res1 = this.GetClassificationSpan(str.Substring(0, comment_end+2), 0, ref startIndex,
+                var res1 = this.GetClassificationSpan(str.Substring(0, comment_end + 2), 0, ref startIndex,
                     ref isComment, ref afterKeyword, snapshot, ref spans);
-                var res2 = this.GetClassificationSpan(str.Substring(comment_end+2), 0, ref startIndex,
+                var res2 = this.GetClassificationSpan(str.Substring(comment_end + 2), 0, ref startIndex,
                     ref isComment, ref afterKeyword, snapshot, ref spans);
                 return res1 || res2;
-                //if (comment_end >= 0)
-                //{
-                //    str = str.Substring(0, comment_end + 2);
-                //}
             }
-
-            //if (comment_end >= 0)
-            //{
-            //    span = new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
-            //            _registry.GetClassificationType(Constants.MultiLineCommentClassType));
-
-            //    startIndex += str.Length;
-            //    isMultiComment = false;
-            //    str = spanText.Substring(comment_end + 2);
-            //    spans.Add(span);
-            //}
-
-            IClassificationType classificationType = null;
-            
-            #region detect Classification Type
-            if (!afterKeyword && !isComment && !isMultiComment && (str.Equals("(") || str.Equals(")")))
-            {
-                classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
-            }
-            else if (!afterKeyword && !isComment && !isMultiComment && Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
-            {
-                classificationType = _registry.GetClassificationType(Constants.Keyword2ClassType);
-            }
-            else if (!afterKeyword && !isComment && !isMultiComment && Constants.Keywords.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
-            {
-                classificationType = _registry.GetClassificationType(Constants.KeywordClassType);
-                afterKeyword = !str.Contains("//n");
-            }
-            else if (!isMultiComment && (str.Trim().StartsWith("//") || isComment))
-            {
-                classificationType =  _registry.GetClassificationType(Constants.SingleLineCommentClassType);
-                isComment = !str.Contains("//n");
-                afterKeyword = false;
-            }
-            else if (!isComment && (isMultiComment || str.StartsWith("/*")))
-            {
-                classificationType =   _registry.GetClassificationType(Constants.MultiLineCommentClassType);
-                isMultiComment = !str.Contains("*/");
-            }
-            else if (afterKeyword)
-            {
-                classificationType = _registry.GetClassificationType(Constants.ContentClassType);
-            }
-            else
-            {
-                classificationType =  _registry.GetClassificationType(Constants.DefaultClassType);
-            }
-            #endregion
-
-            span =
-                     new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
-                         classificationType);
-
-            startIndex += str.Length + spaceSize;
-            
-            spans.Add(span);
-
-            //if (comment_start > 0)
-            //{
-            //    str = spanText.Substring(comment_start);
-            //    span =
-            //         new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
-            //             _registry.GetClassificationType(Constants.SingleLineCommentClassType));
-            //    startIndex += str.Length;
-            //    isComment = true;
-            //    afterKeyword = false;
-            //    spans.Add(span);
-            //}
-
-            //if (isComment && str.Contains("//n"))
-            //{
-            //    isComment = false;
-            //}
-
-            //if (afterKeyword && str.Contains("//n"))
-            //{
-            //    afterKeyword = false;
-            //}
-
-            return true;
+            return false;
         }
 
 #pragma warning disable 67
