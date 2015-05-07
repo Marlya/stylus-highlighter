@@ -68,23 +68,22 @@ namespace StylusEditorClassifier
 
             String[] parts = text.Split(' ');
             Int32 index = span.Start;
-            Boolean isComment = false;
+            //Boolean isComment = false;
 
-            Boolean afterKeyword = false;
+            //Boolean afterKeyword = false;
+            State currentState = State.Default;
 
             foreach (var originals_str in parts)
             {
-                this.GetClassificationSpan(originals_str, 1, ref index, ref isComment,
-                    ref afterKeyword, span.Snapshot, ref classifications);
+                this.GetClassificationSpan(originals_str, 1, ref index,
+                    span.Snapshot, ref classifications, ref currentState);
 
             }
             return classifications;
         }
 
         private Boolean GetClassificationSpan(String spanText, Int32 spaceSize, ref Int32 startIndex,
-            ref Boolean isComment,
-            ref Boolean afterKeyword,
-            ITextSnapshot snapshot, ref List<ClassificationSpan> spans)
+            ITextSnapshot snapshot, ref List<ClassificationSpan> spans, ref State currentState)
         {
             ClassificationSpan span = null;
 
@@ -96,7 +95,7 @@ namespace StylusEditorClassifier
                 return false;
             }
 
-            Boolean res = this.CheckForSpecialSymbols(str, ref startIndex, ref isComment, ref afterKeyword, snapshot, ref spans);
+            Boolean res = this.CheckForSpecialSymbols(str, ref startIndex, snapshot, ref spans, ref currentState);
 
             if(res) return true;
 
@@ -104,15 +103,15 @@ namespace StylusEditorClassifier
             
             #region detect Classification Type
             
-            if (!afterKeyword && !isComment && !isMultiComment && (str.Equals("(") || str.Equals(")")))
+            if (currentState == State.Default && (str.Equals("(") || str.Equals(")")))
             {
                 classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
             }
-            else if (!afterKeyword && !isComment && !isMultiComment && Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
+            else if (currentState == State.Default && Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
             {
                 classificationType = _registry.GetClassificationType(Constants.Keyword2ClassType);
             }
-            else if (!afterKeyword && !isComment && !isMultiComment 
+            else if (currentState == State.Default 
                 && 
                     (
                         Constants.Keywords.Contains(str.Trim().Trim(':'))
@@ -124,20 +123,19 @@ namespace StylusEditorClassifier
                 )
             {
                 classificationType = _registry.GetClassificationType(Constants.KeywordClassType);
-                afterKeyword = !str.Contains("//n");
+                currentState = !str.Contains("//n")?State.AfterKeyword : State.Default;
             }
-            else if (!isMultiComment && (str.Trim().StartsWith("//") || isComment))
+            else if (!isMultiComment && (str.Trim().StartsWith("//") || currentState == State.IsComment))
             {
                 classificationType =  _registry.GetClassificationType(Constants.SingleLineCommentClassType);
-                isComment = !str.Contains("//n");
-                afterKeyword = false;
+                currentState = State.IsComment;
             }
-            else if (!isComment && (isMultiComment || str.StartsWith("/*")))
+            else if (currentState != State.IsComment && (isMultiComment || str.StartsWith("/*")))
             {
                 classificationType =   _registry.GetClassificationType(Constants.MultiLineCommentClassType);
                 isMultiComment = !str.Contains("*/");
             }
-            else if (afterKeyword)
+            else if (currentState == State.AfterKeyword)
             {
                 classificationType = _registry.GetClassificationType(Constants.ContentClassType);
             }
@@ -157,79 +155,77 @@ namespace StylusEditorClassifier
         }
 
         private Boolean CheckForSpecialSymbols(String spanText, ref Int32 startIndex,
-            ref Boolean isComment,
-            ref Boolean afterKeyword,
-            ITextSnapshot snapshot, ref List<ClassificationSpan> spans)
+            ITextSnapshot snapshot, ref List<ClassificationSpan> spans, ref State currentState)
         {
             var str = spanText;
 
-            if (!isComment && !isMultiComment && !str.EndsWith(":") && str.IndexOf(":") > 0)
+            if (currentState!=State.IsComment && !isMultiComment && !str.EndsWith(":") && str.IndexOf(":") > 0)
             {
                 var start = str.IndexOf(":");
                 var res1 = this.GetClassificationSpan(str.Substring(0, start + 1), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                   snapshot, ref spans, ref currentState);
                 var res2 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 return res1 || res2;
             }
 
-            if (!isComment && !isMultiComment && str.Length > 1 && str.IndexOf("(") >= 0)
+            if (currentState != State.IsComment && !isMultiComment && str.Length > 1 && str.IndexOf("(") >= 0)
             {
                 var start = str.IndexOf("(");
                 Boolean res1 = false;
                 if (start > 0)
                 {
                     res1 = this.GetClassificationSpan(str.Substring(0, start), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
+                        snapshot, ref spans, ref currentState);
                 }
                 var res2 = this.GetClassificationSpan("(", 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 Boolean res3 = false;
                 if (!str.EndsWith("("))
                 {
                     res3 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
+                        snapshot, ref spans, ref currentState);
                 }
                 return res1 || res2 || res3;
             }
 
-            if (!isComment && !isMultiComment && str.Length > 1 && str.IndexOf(")") >= 0)
+            if (currentState!=State.IsComment && !isMultiComment && str.Length > 1 && str.IndexOf(")") >= 0)
             {
                 var start = str.IndexOf(")");
                 Boolean res1 = false;
                 if (start > 0)
                 {
                     res1 = this.GetClassificationSpan(str.Substring(0, start), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
+                        snapshot, ref spans, ref currentState);
                 }
                 var res2 = this.GetClassificationSpan(")", 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 Boolean res3 = false;
                 if (!str.EndsWith(")"))
                 {
                     res3 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
+                        snapshot, ref spans, ref currentState);
                 }
                 return res1 || res2 || res3;
             }
 
-            if (!isComment && !isMultiComment && str.Trim().IndexOf("//") > 0)
+            if (currentState!=State.IsComment && !isMultiComment && str.Trim().IndexOf("//") > 0)
             {
                 var comment_start = str.IndexOf("//");
                 var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 return res1 || res2;
             }
 
-            if (!isComment && !isMultiComment && str.IndexOf("/*") > 0 && !str.StartsWith("'"))
+            if (currentState != State.IsComment && !isMultiComment && str.IndexOf("/*") > 0 && !str.StartsWith("'"))
             {
                 var comment_start = str.IndexOf("/*");
                 var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 return res1 || res2;
             }
 
@@ -237,9 +233,9 @@ namespace StylusEditorClassifier
             {
                 var comment_end = str.IndexOf("*/");
                 var res1 = this.GetClassificationSpan(str.Substring(0, comment_end + 2), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                    snapshot, ref spans, ref currentState);
                 var res2 = this.GetClassificationSpan(str.Substring(comment_end + 2), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
+                   snapshot, ref spans, ref currentState);
                 return res1 || res2;
             }
             return false;
