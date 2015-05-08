@@ -20,8 +20,49 @@ namespace StylusEditorClassifier
 
         public static readonly List<SpecialSymbol> SpecialSymbols = new List<SpecialSymbol>
         {
-            new SpecialSymbol(){Symbol = "//", Include = IncludeType.IncludeToRight, StartsWithZero = false},
-            new SpecialSymbol(){Symbol = "/*", Include = IncludeType.IncludeToRight, StartsWithZero = false},
+            new SpecialSymbol()
+            {
+                Symbol = "//", 
+                Include = IncludeType.IncludeToRight, 
+                StartsWithZero = false,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = "/*",
+                Include = IncludeType.IncludeToRight,
+                StartsWithZero = false, 
+                StringNotStartsWith = new List<string>{"'","\""},
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = "*/",
+                Include = IncludeType.IncludeToLeft,
+                StartsWithZero = true, 
+                ValidStates = new List<State>{State.IsMultiComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = ":",
+                Include = IncludeType.IncludeToLeft,
+                StartsWithZero = false,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = "(",
+                Include = IncludeType.Exclude,
+                StartsWithZero = true,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = ")",
+                Include = IncludeType.Exclude,
+                StartsWithZero = true,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
         };
 
         public static readonly HashSet<String> Keywords = new HashSet<String>()

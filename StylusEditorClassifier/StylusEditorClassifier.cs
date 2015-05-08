@@ -155,119 +155,75 @@ namespace StylusEditorClassifier
             return true;
         }
 
-        
+        private Boolean ContainsSpecilaSymbolInString(SpecialSymbol symbol, String str, State currentState)
+        {
+            var index = str.IndexOf(symbol.Symbol);
+            if (index < 0) 
+                return false;
+            if (symbol.ValidStates != null && symbol.ValidStates.All(state => state != currentState))
+                return false;
+            if (symbol.NotValidStates != null && symbol.NotValidStates.Any(state => state == currentState))
+                return false;
+            if (!symbol.StartsWithZero && index == 0)
+                return false;
+            if (symbol.Include == IncludeType.IncludeToLeft && index == str.Length - symbol.Symbol.Length)
+                return false;
+            if (symbol.Include == IncludeType.Exclude && index == 0 && str.Length == symbol.Symbol.Length)
+                return false;
+            if (symbol.StringNotStartsWith != null && symbol.StringNotStartsWith.Any(str.StartsWith))
+                return false;
+            return true;
+        }
 
         private Boolean CheckForSpecialSymbols(String spanText, ref Int32 startIndex,
             ITextSnapshot snapshot, ref List<ClassificationSpan> spans, ref State currentState)
         {
             var str = spanText;
 
-            List<SpecialSymbol> symbols = new List<SpecialSymbol> 
-            { "//", "/*",  ":" };
-            //List<String> symbols2 = new List<string> { "(", ")" };
-            //List<String> symbols3 = new List<string> { "*/", };
+            State st = currentState;
+            SpecialSymbol symbol = Constants.SpecialSymbols.FirstOrDefault
+                (smbl => this.ContainsSpecilaSymbolInString(smbl, str.Trim(), st));
 
-            String symbol = symbols.FirstOrDefault(str.Contains);
             if (symbol == null)
             {
                 return false;
             }
 
-            if (currentState != State.IsComment && !isMultiComment && str.Trim().IndexOf(symbol) > 0)
+            var index = str.IndexOf(symbol.Symbol);
+
+            Boolean res1 = false, res2 = false, res3 = false;
+
+            //left part
+            if (symbol.Include == IncludeType.IncludeToLeft)
             {
-                var index = str.IndexOf(symbol);
-                var res1 = this.GetClassificationSpan(str.Substring(0, index), 0, ref startIndex,
+                res1 = this.GetClassificationSpan(str.Substring(0, index + symbol.Symbol.Length), 0, ref startIndex,
                     snapshot, ref spans, ref currentState);
-                var res2 = this.GetClassificationSpan(str.Substring(index), 0, ref startIndex,
-                    snapshot, ref spans, ref currentState);
-                return res1 || res2;
             }
-
-
-            //if (currentState != State.IsComment && !isMultiComment && str.Trim().IndexOf("//") > 0)
-            //{
-            //    var comment_start = str.IndexOf("//");
-            //    var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
-            //        snapshot, ref spans, ref currentState);
-            //    var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
-            //        snapshot, ref spans, ref currentState);
-            //    return res1 || res2;
-            //}
-            
-            if (currentState!=State.IsComment && !isMultiComment && !str.EndsWith(":") && str.IndexOf(":") > 0)
+            else if (symbol.Include == IncludeType.IncludeToRight
+                     || (symbol.Include == IncludeType.Exclude && index > 0))
             {
-                var start = str.IndexOf(":");
-                var res1 = this.GetClassificationSpan(str.Substring(0, start + 1), 0, ref startIndex,
-                   snapshot, ref spans, ref currentState);
-                var res2 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
+                res1 = this.GetClassificationSpan(str.Substring(0, index), 0, ref startIndex,
                     snapshot, ref spans, ref currentState);
-                return res1 || res2;
             }
-
-            
-
-            if (currentState != State.IsComment && !isMultiComment && str.Length > 1 && str.IndexOf("(") >= 0)
+            //middle
+            if (symbol.Include == IncludeType.Exclude)
             {
-                var start = str.IndexOf("(");
-                Boolean res1 = false;
-                if (start > 0)
-                {
-                    res1 = this.GetClassificationSpan(str.Substring(0, start), 0, ref startIndex,
-                        snapshot, ref spans, ref currentState);
-                }
-                var res2 = this.GetClassificationSpan("(", 0, ref startIndex,
+                res2 = this.GetClassificationSpan(symbol.Symbol, 0, ref startIndex,
                     snapshot, ref spans, ref currentState);
-                Boolean res3 = false;
-                if (!str.EndsWith("("))
-                {
-                    res3 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
-                        snapshot, ref spans, ref currentState);
-                }
-                return res1 || res2 || res3;
             }
-
-            if (currentState!=State.IsComment && !isMultiComment && str.Length > 1 && str.IndexOf(")") >= 0)
+            //right part
+            if (symbol.Include == IncludeType.IncludeToLeft
+                || (symbol.Include == IncludeType.Exclude && index != str.Length - symbol.Symbol.Length))
             {
-                var start = str.IndexOf(")");
-                Boolean res1 = false;
-                if (start > 0)
-                {
-                    res1 = this.GetClassificationSpan(str.Substring(0, start), 0, ref startIndex,
-                        snapshot, ref spans, ref currentState);
-                }
-                var res2 = this.GetClassificationSpan(")", 0, ref startIndex,
+                res3 = this.GetClassificationSpan(str.Substring(index + symbol.Symbol.Length), 0, ref startIndex,
                     snapshot, ref spans, ref currentState);
-                Boolean res3 = false;
-                if (!str.EndsWith(")"))
-                {
-                    res3 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
-                        snapshot, ref spans, ref currentState);
-                }
-                return res1 || res2 || res3;
             }
-
-            
-
-            if (currentState != State.IsComment && !isMultiComment && str.IndexOf("/*") > 0 && !str.StartsWith("'"))
+            else if (symbol.Include == IncludeType.IncludeToRight)
             {
-                var comment_start = str.IndexOf("/*");
-                var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
+                res3 = this.GetClassificationSpan(str.Substring(index), 0, ref startIndex,
                     snapshot, ref spans, ref currentState);
-                var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
-                    snapshot, ref spans, ref currentState);
-                return res1 || res2;
             }
-
-            if (isMultiComment && str.Length > 2 && !str.EndsWith("*/") && str.Contains("*/"))
-            {
-                var comment_end = str.IndexOf("*/");
-                var res1 = this.GetClassificationSpan(str.Substring(0, comment_end + 2), 0, ref startIndex,
-                    snapshot, ref spans, ref currentState);
-                var res2 = this.GetClassificationSpan(str.Substring(comment_end + 2), 0, ref startIndex,
-                   snapshot, ref spans, ref currentState);
-                return res1 || res2;
-            }
-            return false;
+            return res1 || res2 || res3;
         }
 
 #pragma warning disable 67
