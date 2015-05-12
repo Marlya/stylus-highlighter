@@ -70,6 +70,20 @@ namespace StylusEditorClassifier
     }
 
     [Export(typeof(EditorFormatDefinition))]
+    [ClassificationType(ClassificationTypeNames = Constants.FunctionClassType)]
+    [Name("Stylus.FunctionClassificationFormat")]
+    [UserVisible(true)]
+    [Order(Before = Priority.Default)]
+    internal sealed class FunctionClassificationFormat : ClassificationFormatDefinition
+    {
+        public FunctionClassificationFormat()
+        {
+            this.DisplayName = "Stylus Function";
+            this.ForegroundColor = Colors.Teal;
+        }
+    }
+
+    [Export(typeof(EditorFormatDefinition))]
     [ClassificationType(ClassificationTypeNames = Constants.SingleLineCommentClassType)]
     [Name("Stylus.CommentClassificationFormat")]
     [UserVisible(true)]

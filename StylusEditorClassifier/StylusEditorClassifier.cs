@@ -4,6 +4,7 @@ using System.ComponentModel.Composition;
 using System.Linq;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
@@ -191,14 +192,36 @@ namespace StylusEditorClassifier
 
             String text = _buffer.CurrentSnapshot.GetText(span);
 
-            String[] parts = text.Split(' ');
-            Int32 index = span.Start;
-
-            foreach (var originals_str in parts)
+            if (this.CheckForFunction(text.Trim()))
             {
-                this.GetClassificationSpan(originals_str, parts.Length == 1 && originals_str==parts[parts.Length - 1] ? 0 : 1, ref index,
-                    span.Snapshot, ref classifications);
+                Int32 startIndex = span.Start;
 
+                classifications.Add(new ClassificationSpan(new SnapshotSpan(span.Snapshot, new Span(startIndex, text.IndexOf("("))),
+                          _registry.GetClassificationType(Constants.FunctionClassType)));
+
+                String[] parts = text.Substring(text.IndexOf("(")).Split(' ');
+                Int32 index = span.Start + text.IndexOf("(");
+
+                foreach (var originals_str in parts)
+                {
+                    this.GetClassificationSpan(originals_str,
+                        parts.Length == 1 && originals_str == parts[parts.Length - 1] ? 0 : 1, ref index,
+                        span.Snapshot, ref classifications);
+
+                }
+            }
+            else
+            {
+                String[] parts = text.Split(' ');
+                Int32 index = span.Start;
+
+                foreach (var originals_str in parts)
+                {
+                    this.GetClassificationSpan(originals_str,
+                        parts.Length == 1 && originals_str == parts[parts.Length - 1] ? 0 : 1, ref index,
+                        span.Snapshot, ref classifications);
+
+                }
             }
 
             if (span.End == span.Snapshot.Length)
@@ -458,6 +481,12 @@ namespace StylusEditorClassifier
             if (symbol.StringNotStartsWith != null && symbol.StringNotStartsWith.Any(str.StartsWith))
                 return false;
             return true;
+        }
+
+        private Boolean CheckForFunction(String spanText)
+        {
+            Regex funcReg = new Regex("^[a-zA-Z-]+[ ]*[(]");
+            return funcReg.IsMatch(spanText);
         }
 
         private Boolean CheckForSpecialSymbols(String spanText, Int32 move, ref Int32 startIndex,

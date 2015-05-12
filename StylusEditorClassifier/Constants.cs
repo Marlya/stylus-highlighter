@@ -14,6 +14,7 @@ namespace StylusEditorClassifier
         public const string KeywordClassType = "stylus.keyword";
         public const string Keyword2ClassType = "stylus.keyword2";
         public const string ContentClassType = "stylus.content";
+        public const string FunctionClassType = "stylus.function";
         public const string SingleLineCommentClassType = "stylus.singlelineComment";
         public const string MultiLineCommentClassType = "stylus.multilineComment";
 
