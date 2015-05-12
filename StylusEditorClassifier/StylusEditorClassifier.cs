@@ -176,10 +176,14 @@ namespace StylusEditorClassifier
         /// This method scans the given SnapshotSpan for potential matches for this classification.
         /// In this instance, it classifies everything and returns each span as a new ClassificationSpan.
         /// </summary>
-        /// <param name="trackingSpan">The span currently being classified</param>
+        /// <param name="span">The span currently being classified</param>
         /// <returns>A list of ClassificationSpans that represent spans identified to be of this classification</returns>
         public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span)
         {
+            if (span.Start == 0)
+            {
+                currentState = State.None;
+            }
             currentState = this.DetetectState(span.Start);
             
             //create a list to hold the results
@@ -192,9 +196,14 @@ namespace StylusEditorClassifier
 
             foreach (var originals_str in parts)
             {
-                this.GetClassificationSpan(originals_str, 1, ref index,
+                this.GetClassificationSpan(originals_str, parts.Length == 1 && originals_str==parts[parts.Length - 1] ? 0 : 1, ref index,
                     span.Snapshot, ref classifications);
 
+            }
+
+            if (span.End == span.Snapshot.Length)
+            {
+                currentState = State.None;
             }
             return classifications;
         }
@@ -322,11 +331,14 @@ namespace StylusEditorClassifier
             
             if (String.IsNullOrWhiteSpace(str))
             {
-                startIndex = startIndex + spaceSize;
+                startIndex = startIndex + str.Length + spaceSize;
+                if (str == Environment.NewLine && 
+                    (currentState == State.AfterKeyword || currentState == State.AfterKeywordAfterBracket || currentState == State.IsComment))
+                    currentState = State.Default;
                 return false;
             }
 
-            Boolean res = this.CheckForSpecialSymbols(str, ref startIndex, snapshot, ref spans);
+            Boolean res = this.CheckForSpecialSymbols(str, spaceSize, ref startIndex, snapshot, ref spans);
 
             if(res) 
                 return true;
@@ -334,38 +346,67 @@ namespace StylusEditorClassifier
             IClassificationType classificationType = null;
             
             #region detect Classification Type
-            
-            if (currentState == State.Default && (str.Equals("(") || str.Equals(")")))
+
+            if ((currentState != State.IsComment && currentState != State.IsMultiComment) &&
+                (str.Equals("(") || str.Equals(")")))
             {
                 classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
+
+                if (str.Equals("("))
+                {
+                    if (currentState == State.Default)
+                        currentState = State.Bracket;
+
+                    //if (currentState == State.AfterKeyword)
+                    //    currentState = State.BracketAfterKeyword;
+                }
+
+                if (str.Equals(")"))
+                {
+                    if (currentState == State.Bracket || currentState == State.AfterKeywordAfterBracket )
+                        currentState = State.Default;
+                }
             }
-            else if (currentState == State.Default && Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
+            else if (currentState == State.Default &&
+                     Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
             {
                 classificationType = _registry.GetClassificationType(Constants.Keyword2ClassType);
             }
-            else if (currentState == State.Default 
-                && 
-                    (
-                        Constants.Keywords.Contains(str.Trim().Trim(':'))
-                        || (str.Trim().StartsWith("-webkit-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-webkit-", "")))
-                        || (str.Trim().StartsWith("-moz-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-moz-", "")))
-                        || (str.Trim().StartsWith("-o-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-o-", "")))
-                        || (str.Trim().StartsWith("-ms-") && Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-ms-", "")))
-                    )
+            else if ((currentState == State.Default || currentState == State.Bracket)
+                     &&
+                     (
+                         Constants.Keywords.Contains(str.Trim().Trim(':'))
+                         ||
+                         (str.Trim().StartsWith("-webkit-") &&
+                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-webkit-", "")))
+                         ||
+                         (str.Trim().StartsWith("-moz-") &&
+                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-moz-", "")))
+                         ||
+                         (str.Trim().StartsWith("-o-") &&
+                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-o-", "")))
+                         ||
+                         (str.Trim().StartsWith("-ms-") &&
+                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-ms-", "")))
+                         )
                 )
             {
                 classificationType = _registry.GetClassificationType(Constants.KeywordClassType);
-                currentState = !str.Contains("\n")?State.AfterKeyword : State.Default;
+                currentState = !str.Contains("\n")
+                    ? (currentState == State.Bracket ? State.AfterKeywordAfterBracket : State.AfterKeyword)
+                    : State.Default;
             }
-            else if (currentState != State.IsMultiComment && (str.Trim().StartsWith("//") || currentState == State.IsComment))
+            else if (currentState != State.IsMultiComment &&
+                     (str.Trim().StartsWith("//") || currentState == State.IsComment))
             {
-                classificationType =  _registry.GetClassificationType(Constants.SingleLineCommentClassType);
+                classificationType = _registry.GetClassificationType(Constants.SingleLineCommentClassType);
                 currentState = !str.Contains("\n") ? State.IsComment : State.Default;
             }
-            else if (currentState != State.IsComment && (currentState == State.IsMultiComment || str.StartsWith("/*")))
+            else if (currentState != State.IsComment &&
+                     (currentState == State.IsMultiComment || str.StartsWith("/*")))
             {
-                classificationType =   _registry.GetClassificationType(Constants.MultiLineCommentClassType);
-                currentState = !str.Contains("*/")?State.IsMultiComment : State.Default;
+                classificationType = _registry.GetClassificationType(Constants.MultiLineCommentClassType);
+                currentState = !str.Contains("*/") ? State.IsMultiComment : State.Default;
                 if (str.StartsWith("/*"))
                 {
                     this.AddMultiCommentStart(startIndex);
@@ -376,16 +417,19 @@ namespace StylusEditorClassifier
                 }
 
             }
-            else if (currentState == State.AfterKeyword)
+            else if (currentState == State.AfterKeyword || currentState == State.AfterKeywordAfterBracket)
             {
                 classificationType = _registry.GetClassificationType(Constants.ContentClassType);
-                currentState = !str.Contains("\n") ? State.AfterKeyword : State.Default;
+                currentState = !str.Contains("\n") ? currentState : State.Default;
             }
             else
             {
-                classificationType =  _registry.GetClassificationType(Constants.DefaultClassType);
+                classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
             }
+
             #endregion
+
+            
 
             span = new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
                          classificationType);
@@ -416,7 +460,7 @@ namespace StylusEditorClassifier
             return true;
         }
 
-        private Boolean CheckForSpecialSymbols(String spanText, ref Int32 startIndex,
+        private Boolean CheckForSpecialSymbols(String spanText, Int32 move, ref Int32 startIndex,
             ITextSnapshot snapshot, ref List<ClassificationSpan> spans)
         {
             var str = spanText;
@@ -463,6 +507,7 @@ namespace StylusEditorClassifier
                 res3 = this.GetClassificationSpan(str.Substring(index), 0, ref startIndex,
                     snapshot, ref spans);
             }
+            startIndex = startIndex + move;
             return res1 || res2 || res3;
         }
 

@@ -6,6 +6,9 @@
         Default = 0,
         IsComment = 1,
         IsMultiComment = 2,
-        AfterKeyword = 3
+        AfterKeyword = 3,
+        AfterKeywordAfterBracket = 4,
+        Bracket = 5,
+      //  BracketAfterKeyword = 6,
     }
 }
