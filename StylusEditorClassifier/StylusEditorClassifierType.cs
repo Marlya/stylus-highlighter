@@ -36,6 +36,10 @@ namespace StylusEditorClassifier
         internal static ClassificationTypeDefinition StylusContentClassificationType { get; set; }
 
         [Export(typeof(ClassificationTypeDefinition))]
+        [Name(Constants.FunctionClassType)]
+        internal static ClassificationTypeDefinition StylusFunctionClassificationType { get; set; }
+
+        [Export(typeof(ClassificationTypeDefinition))]
         [Name(Constants.SingleLineCommentClassType)]
         internal static ClassificationTypeDefinition StylusCommentClassificationType { get; set; }
 

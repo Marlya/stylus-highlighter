@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.Linq;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Windows.Media;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
@@ -43,46 +46,306 @@ namespace StylusEditorClassifier
         IClassificationType _classificationType;
         private IClassificationTypeRegistryService _registry;
         private ITextBuffer _buffer;
+        
+        State currentState = State.None;
 
         internal StylusEditorClassifier(ITextBuffer buffer, IClassificationTypeRegistryService registry)
         {
             this._registry = registry;
             this._buffer = buffer;
-            //_classificationType = registry.GetClassificationType("StylusEditorClassifier");
+            this._buffer.Changed += BufferChanged;
         }
 
-        Boolean isMultiComment = false;
+        private void BufferChanged(object sender, TextContentChangedEventArgs e)
+        {
+            foreach (var change in e.Changes)
+            {
+                var startMC = this.GetMultiCommentStartIndeces();
+                var endMC = this.GetMultiCommentEndIndeces();
+
+                if (change.NewText == Environment.NewLine)
+                {
+                    this.MoveMultiComment(startMC, endMC, change.OldEnd, change.Delta);
+                    return;
+                }
+
+                var update = -1;
+                var newText = e.After.GetLineFromPosition(change.NewPosition).GetText();
+                var oldText = e.Before.GetLineFromPosition(change.OldPosition).GetText();
+
+                if (startMC != null && oldText.Contains("/*") && !newText.Contains("/*"))
+                {
+                    var ind = oldText.IndexOf("/*");
+                    if (ind >= 0)
+                    {
+                        var position = e.Before.GetLineFromPosition(change.OldPosition).Start + ind;
+                        startMC.Remove(position);
+                    }
+
+                    if (endMC == null || !endMC.Any(ep => ep >= change.OldPosition))
+                        update = Int32.MinValue;
+                    else
+                        update = endMC.Where(ep => ep >= change.OldPosition).OrderBy(ep => ep).First();
+
+                    this.MoveMultiComment(startMC, endMC, change.OldEnd, change.Delta);
+                }
+
+                if (!oldText.Contains("/*") && newText.Contains("/*"))
+                {
+                    if (endMC == null || !endMC.Any(ep => ep >= change.OldPosition))
+                        update = Int32.MinValue;
+                    else
+                        update = endMC.Where(ep => ep >= change.OldPosition).OrderBy(ep => ep).First();
+
+                    this.MoveMultiComment(startMC, endMC, change.OldEnd, change.Delta);
+
+                    var position = e.After.GetLineFromPosition(change.NewPosition).Start + newText.IndexOf("/*");
+                    if (startMC == null)
+                    {
+                        startMC = new List<Int32>();
+                    }
+                    if (!startMC.Contains(position))
+                    {
+                        startMC.Add(position);
+                        this.SetMultiCommentStartIndeces(startMC);
+                    }
+                }
+
+
+                if (endMC != null && oldText.Contains("*/") && !newText.Contains("*/"))
+                {
+                    var ind = oldText.IndexOf("*/");
+                    if (ind >= 0)
+                    {
+                        var position = e.Before.GetLineFromPosition(change.OldPosition).Start + ind + 2;
+                        endMC.Remove(position);
+                    }
+
+                    if (!endMC.Any(ep => ep >= change.OldPosition))
+                        update = Int32.MinValue;
+                    else
+                        update = endMC.Where(ep => ep >= change.OldPosition).OrderBy(ep => ep).First();
+
+                    this.MoveMultiComment(startMC, endMC, change.OldEnd, change.Delta);
+                }
+
+                if (!oldText.Contains("*/") && newText.Contains("*/"))
+                {
+                    if (endMC == null)
+                    {
+                        endMC = new List<Int32>();
+                    }
+
+                    var position = e.After.GetLineFromPosition(change.NewPosition).Start + newText.IndexOf("*/") + 2;
+
+                    if (!endMC.Any(ep => ep >= change.OldPosition))
+                        update = Int32.MinValue;
+                    else
+                        update = endMC.Where(ep => ep >= change.OldPosition + 2).OrderBy(ep => ep).First();
+
+                    this.MoveMultiComment(startMC, endMC, change.OldEnd, change.Delta);
+
+                    if (!endMC.Contains(position))
+                    {
+                        endMC.Add(position);
+                        this.SetMultiCommentEndIndeces(endMC);
+                    }
+
+                }
+
+                if (update != -1)
+                {
+                    SnapshotSpan paragraph = update == Int32.MinValue
+                        ? new SnapshotSpan(e.After, change.NewEnd, e.After.Length - change.NewEnd)
+                        : new SnapshotSpan(e.After, change.NewEnd, update - change.NewEnd);
+
+                    var temp = this.ClassificationChanged;
+                    if (temp != null)
+                        temp(this, new ClassificationChangedEventArgs(paragraph));
+                }
+                else
+                {
+                    if (this.DetetectState(change.OldPosition) == State.IsMultiComment)
+                    {
+                        this.MoveMultiComment(startMC, endMC, change.OldPosition, change.Delta);
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// This method scans the given SnapshotSpan for potential matches for this classification.
         /// In this instance, it classifies everything and returns each span as a new ClassificationSpan.
         /// </summary>
-        /// <param name="trackingSpan">The span currently being classified</param>
+        /// <param name="span">The span currently being classified</param>
         /// <returns>A list of ClassificationSpans that represent spans identified to be of this classification</returns>
         public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span)
         {
+            if (span.Start == 0)
+            {
+                currentState = State.None;
+            }
+            currentState = this.DetetectState(span.Start);
+            
             //create a list to hold the results
             List<ClassificationSpan> classifications = new List<ClassificationSpan>();
 
             String text = _buffer.CurrentSnapshot.GetText(span);
 
-            String[] parts = text.Split(' ');
-            Int32 index = span.Start;
-            Boolean isComment = false;
-
-            Boolean afterKeyword = false;
-            foreach (var originals_str in parts)
+            if (this.CheckForFunction(text.Trim()))
             {
-                this.GetClassificationSpan(originals_str, 1, ref index, ref isComment,
-                    ref afterKeyword, span.Snapshot, ref classifications);
+                Int32 startIndex = span.Start;
 
+                classifications.Add(new ClassificationSpan(new SnapshotSpan(span.Snapshot, new Span(startIndex, text.IndexOf("("))),
+                          _registry.GetClassificationType(Constants.FunctionClassType)));
+
+                String[] parts = text.Substring(text.IndexOf("(")).Split(' ');
+                Int32 index = span.Start + text.IndexOf("(");
+
+                foreach (var originals_str in parts)
+                {
+                    this.GetClassificationSpan(originals_str,
+                        parts.Length == 1 && originals_str == parts[parts.Length - 1] ? 0 : 1, ref index,
+                        span.Snapshot, ref classifications);
+
+                }
+            }
+            else
+            {
+                String[] parts = text.Split(' ');
+                Int32 index = span.Start;
+
+                foreach (var originals_str in parts)
+                {
+                    this.GetClassificationSpan(originals_str,
+                        parts.Length == 1 && originals_str == parts[parts.Length - 1] ? 0 : 1, ref index,
+                        span.Snapshot, ref classifications);
+
+                }
+            }
+
+            if (span.End == span.Snapshot.Length)
+            {
+                currentState = State.None;
             }
             return classifications;
         }
 
+        private State DetetectState(Int32 index)
+        {
+            var startMultiComments = this.GetMultiCommentStartIndeces();
+            var endMultiComments = this.GetMultiCommentEndIndeces();
+
+            if (startMultiComments !=null && startMultiComments.Any(st => st < index))
+            {
+                Int32 start = startMultiComments.Where(st => st < index).Min(st => index- st);
+                start = index - start;
+
+                if(endMultiComments == null || !endMultiComments.Any(ind=> ind > start))
+                    return State.IsMultiComment;
+
+                var ends = endMultiComments.Where(st => st > start).ToList();
+                Int32 end =ends.Min(st => st - start);
+                end = end + start;
+
+                if(end > index)
+                    return State.IsMultiComment;
+
+            }
+            return currentState == State.None || currentState == State.IsMultiComment ? State.Default : currentState;
+        }
+        #region Multi comment
+
+        private List<Int32> GetMultiCommentStartIndeces()
+        {
+            List<Int32> startIndeces = null;
+            if (this._buffer.Properties.ContainsProperty("StartMultiComment"))
+            {
+                startIndeces = this._buffer.Properties.GetProperty<List<Int32>>("StartMultiComment");
+            }
+            return startIndeces;
+        }
+
+        private void SetMultiCommentStartIndeces(List<Int32> indeces)
+        {
+            if (this._buffer.Properties.ContainsProperty("StartMultiComment"))
+            {
+               this._buffer.Properties.RemoveProperty("StartMultiComment");
+            }
+            this._buffer.Properties.AddProperty("StartMultiComment", indeces);
+        }
+
+        private List<Int32> GetMultiCommentEndIndeces()
+        {
+            List<Int32> startIndeces = null;
+            if (this._buffer.Properties.ContainsProperty("EndMultiComment"))
+            {
+                startIndeces = this._buffer.Properties.GetProperty<List<Int32>>("EndMultiComment");
+            }
+            return startIndeces;
+        }
+
+        private void SetMultiCommentEndIndeces(List<Int32> indeces)
+        {
+            if (this._buffer.Properties.ContainsProperty("EndMultiComment"))
+            {
+                this._buffer.Properties.RemoveProperty("EndMultiComment");
+            }
+            this._buffer.Properties.AddProperty("EndMultiComment", indeces);
+        }
+
+        private void AddMultiCommentStart(Int32 index)
+        {
+            List<Int32> startIndeces = this.GetMultiCommentStartIndeces();
+
+            if(startIndeces == null)
+                startIndeces = new List<Int32>();
+
+            if (!startIndeces.Contains(index))
+            {
+                startIndeces.Add(index);
+                this.SetMultiCommentStartIndeces(startIndeces);
+            }
+
+
+        }
+
+        private void AddMultiCommentEnd(Int32 index)
+        {
+            List<Int32> endIndeces = this.GetMultiCommentEndIndeces();
+
+            if (endIndeces == null)
+                endIndeces = new List<Int32>();
+
+            if (!endIndeces.Contains(index+2))
+            {
+                endIndeces.Add(index+2);
+                this.SetMultiCommentEndIndeces(endIndeces);
+            }
+        }
+
+        private void MoveMultiComment(List<Int32> startIndeces, List<Int32> endIndeces, Int32 startWithPosition, Int32 delta)
+        {
+            if (startIndeces != null)
+            {
+                var startToMove = startIndeces.Where(st => st >= startWithPosition).ToList();
+                startIndeces.RemoveAll(startToMove.Contains);
+                startIndeces.AddRange(startToMove.Where(st => !startIndeces.Contains(st)).Select(st => st + delta));
+                this.SetMultiCommentStartIndeces(startIndeces);
+            }
+
+            if (endIndeces != null)
+            {
+                var endToMove = endIndeces.Where(st => st > startWithPosition).ToList();
+                endIndeces.RemoveAll(endToMove.Contains);
+                endIndeces.AddRange(endToMove.Where(st => !endIndeces.Contains(st)).Select(st => st + delta));
+                this.SetMultiCommentEndIndeces(endIndeces);
+            }
+        }
+
+       
+        #endregion
         private Boolean GetClassificationSpan(String spanText, Int32 spaceSize, ref Int32 startIndex,
-            ref Boolean isComment,
-            ref Boolean afterKeyword,
             ITextSnapshot snapshot, ref List<ClassificationSpan> spans)
         {
             ClassificationSpan span = null;
@@ -91,183 +354,190 @@ namespace StylusEditorClassifier
             
             if (String.IsNullOrWhiteSpace(str))
             {
-                startIndex = startIndex + spaceSize;
+                startIndex = startIndex + str.Length + spaceSize;
+                if (str == Environment.NewLine && 
+                    (currentState == State.AfterKeyword || currentState == State.AfterKeywordAfterBracket || currentState == State.IsComment))
+                    currentState = State.Default;
                 return false;
             }
 
-            if (!isComment && !isMultiComment && !str.EndsWith(":") && str.IndexOf(":") > 0)
-            {
-                var start = str.IndexOf(":");
-                var res1 = this.GetClassificationSpan(str.Substring(0, start+1), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                var res2 = this.GetClassificationSpan(str.Substring(start+1), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                return res1 || res2;
-            }
+            Boolean res = this.CheckForSpecialSymbols(str, spaceSize, ref startIndex, snapshot, ref spans);
 
-            if (!isComment && !isMultiComment && str.Length > 1 && str.IndexOf("(") >= 0)
-            {
-                var start = str.IndexOf("(");
-                Boolean res1 =false;
-                if (start > 0)
-                {
-                    res1 = this.GetClassificationSpan(str.Substring(0, start), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
-                }
-                var res2 = this.GetClassificationSpan("(", 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                Boolean res3 = false;
-                if (!str.EndsWith("("))
-                {
-                    res3 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
-                }
-                return res1 || res2 || res3;
-            }
-
-            if (!isComment && !isMultiComment && str.Length > 1 && str.IndexOf(")") >= 0)
-            {
-                var start = str.IndexOf(")");
-                Boolean res1 = false;
-                if (start > 0)
-                {
-                    res1 = this.GetClassificationSpan(str.Substring(0, start), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
-                }
-                var res2 = this.GetClassificationSpan(")", 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                Boolean res3 = false;
-                if (!str.EndsWith(")"))
-                {
-                    res3 = this.GetClassificationSpan(str.Substring(start + 1), 0, ref startIndex,
-                        ref isComment, ref afterKeyword, snapshot, ref spans);
-                }
-                return res1 || res2 || res3;
-            }
-
-            if (!isComment && !isMultiComment && str.Trim().IndexOf("//") > 0)
-            {
-                var comment_start = str.IndexOf("//");
-                var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                return res1 || res2;
-                //comment_start = str.IndexOf("//");
-                //if (comment_start > 0)
-                //{
-                //    str = str.Substring(0, comment_start);
-                //}
-            }
-
-            if (!isComment && !isMultiComment && str.IndexOf("/*") > 0 && !str.StartsWith("'"))
-            {
-                var comment_start = str.IndexOf("/*");
-                var res1 = this.GetClassificationSpan(str.Substring(0, comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                var res2 = this.GetClassificationSpan(str.Substring(comment_start), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                return res1 || res2;
-                //comment_start = str.IndexOf("/*");
-                //if (comment_start > 0)
-                //{
-                //    str = str.Substring(0, comment_start);
-                //}
-            }
-
-            if (isMultiComment && str.Length > 2 && !str.EndsWith("*/") && str.Contains("*/"))
-            {
-                var comment_end = str.IndexOf("*/");
-                var res1 = this.GetClassificationSpan(str.Substring(0, comment_end+2), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                var res2 = this.GetClassificationSpan(str.Substring(comment_end+2), 0, ref startIndex,
-                    ref isComment, ref afterKeyword, snapshot, ref spans);
-                return res1 || res2;
-                //if (comment_end >= 0)
-                //{
-                //    str = str.Substring(0, comment_end + 2);
-                //}
-            }
-
-            //if (comment_end >= 0)
-            //{
-            //    span = new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
-            //            _registry.GetClassificationType(Constants.MultiLineCommentClassType));
-
-            //    startIndex += str.Length;
-            //    isMultiComment = false;
-            //    str = spanText.Substring(comment_end + 2);
-            //    spans.Add(span);
-            //}
+            if(res) 
+                return true;
 
             IClassificationType classificationType = null;
             
             #region detect Classification Type
-            if (!afterKeyword && !isComment && !isMultiComment && (str.Equals("(") || str.Equals(")")))
+
+            if ((currentState != State.IsComment && currentState != State.IsMultiComment) &&
+                (str.Equals("(") || str.Equals(")")))
             {
                 classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
+
+                if (str.Equals("("))
+                {
+                    if (currentState == State.Default)
+                        currentState = State.Bracket;
+
+                    //if (currentState == State.AfterKeyword)
+                    //    currentState = State.BracketAfterKeyword;
+                }
+
+                if (str.Equals(")"))
+                {
+                    if (currentState == State.Bracket || currentState == State.AfterKeywordAfterBracket )
+                        currentState = State.Default;
+                }
             }
-            else if (!afterKeyword && !isComment && !isMultiComment && Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
+            else if (currentState == State.Default &&
+                     Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
             {
                 classificationType = _registry.GetClassificationType(Constants.Keyword2ClassType);
             }
-            else if (!afterKeyword && !isComment && !isMultiComment && Constants.Keywords.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
+            else if ((currentState == State.Default || currentState == State.Bracket)
+                     &&
+                     (
+                         Constants.CssKeys.Contains(str.Trim().Trim(':'))
+                         ||
+                         (str.Trim().StartsWith("-webkit-") &&
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-webkit-", "")))
+                         ||
+                         (str.Trim().StartsWith("-moz-") &&
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-moz-", "")))
+                         ||
+                         (str.Trim().StartsWith("-o-") &&
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-o-", "")))
+                         ||
+                         (str.Trim().StartsWith("-ms-") &&
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-ms-", "")))
+                         )
+                )
             {
                 classificationType = _registry.GetClassificationType(Constants.KeywordClassType);
-                afterKeyword = !str.Contains("//n");
+                currentState = !str.Contains("\n")
+                    ? (currentState == State.Bracket ? State.AfterKeywordAfterBracket : State.AfterKeyword)
+                    : State.Default;
             }
-            else if (!isMultiComment && (str.Trim().StartsWith("//") || isComment))
+            else if (currentState != State.IsMultiComment &&
+                     (str.Trim().StartsWith("//") || currentState == State.IsComment))
             {
-                classificationType =  _registry.GetClassificationType(Constants.SingleLineCommentClassType);
-                isComment = !str.Contains("//n");
-                afterKeyword = false;
+                classificationType = _registry.GetClassificationType(Constants.SingleLineCommentClassType);
+                currentState = !str.Contains("\n") ? State.IsComment : State.Default;
             }
-            else if (!isComment && (isMultiComment || str.StartsWith("/*")))
+            else if (currentState != State.IsComment &&
+                     (currentState == State.IsMultiComment || str.StartsWith("/*")))
             {
-                classificationType =   _registry.GetClassificationType(Constants.MultiLineCommentClassType);
-                isMultiComment = !str.Contains("*/");
+                classificationType = _registry.GetClassificationType(Constants.MultiLineCommentClassType);
+                currentState = !str.Contains("*/") ? State.IsMultiComment : State.Default;
+                if (str.StartsWith("/*"))
+                {
+                    this.AddMultiCommentStart(startIndex);
+                }
+                if (str.Contains("*/"))
+                {
+                    this.AddMultiCommentEnd(startIndex + str.IndexOf("*/"));
+                }
+
             }
-            else if (afterKeyword)
+            else if (currentState == State.AfterKeyword || currentState == State.AfterKeywordAfterBracket)
             {
                 classificationType = _registry.GetClassificationType(Constants.ContentClassType);
+                currentState = !str.Contains("\n") ? currentState : State.Default;
             }
             else
             {
-                classificationType =  _registry.GetClassificationType(Constants.DefaultClassType);
+                classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
             }
+
             #endregion
 
-            span =
-                     new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
+            
+
+            span = new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
                          classificationType);
 
             startIndex += str.Length + spaceSize;
             
             spans.Add(span);
-
-            //if (comment_start > 0)
-            //{
-            //    str = spanText.Substring(comment_start);
-            //    span =
-            //         new ClassificationSpan(new SnapshotSpan(snapshot, new Span(startIndex, str.Length)),
-            //             _registry.GetClassificationType(Constants.SingleLineCommentClassType));
-            //    startIndex += str.Length;
-            //    isComment = true;
-            //    afterKeyword = false;
-            //    spans.Add(span);
-            //}
-
-            //if (isComment && str.Contains("//n"))
-            //{
-            //    isComment = false;
-            //}
-
-            //if (afterKeyword && str.Contains("//n"))
-            //{
-            //    afterKeyword = false;
-            //}
-
             return true;
+        }
+
+        private Boolean ContainsSpecilaSymbolInString(SpecialSymbol symbol, String str)
+        {
+            var index = str.IndexOf(symbol.Symbol);
+            if (index < 0) 
+                return false;
+            if (symbol.ValidStates != null && symbol.ValidStates.All(state => state != currentState))
+                return false;
+            if (symbol.NotValidStates != null && symbol.NotValidStates.Any(state => state == currentState))
+                return false;
+            if (!symbol.StartsWithZero && index == 0)
+                return false;
+            if (symbol.Include == IncludeType.IncludeToLeft && index == str.Length - symbol.Symbol.Length)
+                return false;
+            if (symbol.Include == IncludeType.Exclude && index == 0 && str.Length == symbol.Symbol.Length)
+                return false;
+            if (symbol.UnsuitableStringBeginnigns != null && symbol.UnsuitableStringBeginnigns.Any(str.StartsWith))
+                return false;
+            return true;
+        }
+
+        private Boolean CheckForFunction(String spanText)
+        {
+            Regex funcReg = new Regex("^[a-zA-Z-]+[ ]*[(]");
+            return funcReg.IsMatch(spanText);
+        }
+
+        private Boolean CheckForSpecialSymbols(String spanText, Int32 move, ref Int32 startIndex,
+            ITextSnapshot snapshot, ref List<ClassificationSpan> spans)
+        {
+            var str = spanText;
+
+            SpecialSymbol symbol = Constants.SpecialSymbols.FirstOrDefault
+                (smbl => this.ContainsSpecilaSymbolInString(smbl, str));
+
+            if (symbol == null)
+            {
+                return false;
+            }
+
+            var index = str.IndexOf(symbol.Symbol);
+
+            Boolean res1 = false, res2 = false, res3 = false;
+
+            //left part
+            if (symbol.Include == IncludeType.IncludeToLeft)
+            {
+                res1 = this.GetClassificationSpan(str.Substring(0, index + symbol.Symbol.Length), 0, ref startIndex,
+                    snapshot, ref spans);
+            }
+            else if (symbol.Include == IncludeType.IncludeToRight
+                     || (symbol.Include == IncludeType.Exclude && index > 0))
+            {
+                res1 = this.GetClassificationSpan(str.Substring(0, index), 0, ref startIndex,
+                    snapshot, ref spans);
+            }
+            //middle
+            if (symbol.Include == IncludeType.Exclude)
+            {
+                res2 = this.GetClassificationSpan(symbol.Symbol, 0, ref startIndex,
+                    snapshot, ref spans);
+            }
+            //right part
+            if (symbol.Include == IncludeType.IncludeToLeft
+                || (symbol.Include == IncludeType.Exclude && index != str.Length - symbol.Symbol.Length))
+            {
+                res3 = this.GetClassificationSpan(str.Substring(index + symbol.Symbol.Length), 0, ref startIndex,
+                    snapshot, ref spans);
+            }
+            else if (symbol.Include == IncludeType.IncludeToRight)
+            {
+                res3 = this.GetClassificationSpan(str.Substring(index), 0, ref startIndex,
+                    snapshot, ref spans);
+            }
+            startIndex = startIndex + move;
+            return res1 || res2 || res3;
         }
 
 #pragma warning disable 67

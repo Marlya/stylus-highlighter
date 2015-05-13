@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StylusEditorClassifier
 {
@@ -14,21 +11,73 @@ namespace StylusEditorClassifier
         public const string KeywordClassType = "stylus.keyword";
         public const string Keyword2ClassType = "stylus.keyword2";
         public const string ContentClassType = "stylus.content";
+        public const string FunctionClassType = "stylus.function";
         public const string SingleLineCommentClassType = "stylus.singlelineComment";
         public const string MultiLineCommentClassType = "stylus.multilineComment";
 
-        public static readonly HashSet<String> Keywords = new HashSet<String>()
+
+        public static readonly List<SpecialSymbol> SpecialSymbols = new List<SpecialSymbol>
+        {
+            new SpecialSymbol()
+            {
+                Symbol = "//", 
+                Include = IncludeType.IncludeToRight, 
+                StartsWithZero = false,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = "/*",
+                Include = IncludeType.IncludeToRight,
+                StartsWithZero = false, 
+                UnsuitableStringBeginnigns = new List<string>{"'","\""},
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = "*/",
+                Include = IncludeType.IncludeToLeft,
+                StartsWithZero = true, 
+                ValidStates = new List<State>{State.IsMultiComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = ":",
+                Include = IncludeType.IncludeToLeft,
+                StartsWithZero = false,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = "(",
+                Include = IncludeType.Exclude,
+                StartsWithZero = true,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+            new SpecialSymbol()
+            {
+                Symbol = ")",
+                Include = IncludeType.Exclude,
+                StartsWithZero = true,
+                NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
+            },
+        };
+
+        public static readonly HashSet<String> CssKeys = new HashSet<String>
         {
             "accelerator",
+            "animation",
             "azimuth",
             "background",
             "background-attachment",
             "background-color",
+            "background-clip",
             "background-image",
             "background-position",
             "background-position-x",
             "background-position-y",
             "background-repeat",
+            "background-size",
             "behavior",
             "border",
             "border-bottom",
@@ -54,6 +103,7 @@ namespace StylusEditorClassifier
             "border-top-width",
             "border-width",
             "bottom",
+            "box-shadow",
             "caption-side",
             "clear",
             "clip",
@@ -70,6 +120,7 @@ namespace StylusEditorClassifier
             "elevation",
             "empty-cells",
             "filter",
+            "flex",
             "float",
             "font",
             "font-family",
@@ -110,25 +161,6 @@ namespace StylusEditorClassifier
             "max-width",
             "min-height",
             "min-width",
-            "-moz-binding",
-            "-moz-border-radius",
-            "-moz-border-radius-topleft",
-            "-moz-border-radius-topright",
-            "-moz-border-radius-bottomright",
-            "-moz-border-radius-bottomleft",
-            "-moz-border-top-colors",
-            "-moz-border-right-colors",
-            "-moz-border-bottom-colors",
-            "-moz-border-left-colors",
-            "-moz-opacity",
-            "-moz-outline",
-            "-moz-outline-color",
-            "-moz-outline-style",
-            "-moz-outline-width",
-            "-moz-user-focus",
-            "-moz-user-input",
-            "-moz-user-modify",
-            "-moz-user-select",
             "opacity",
             "orphans",
             "outline",
