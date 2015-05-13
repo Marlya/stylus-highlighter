@@ -8,7 +8,6 @@
         IsMultiComment = 2,
         AfterKeyword = 3,
         AfterKeywordAfterBracket = 4,
-        Bracket = 5,
-        
+        Bracket = 5
     }
 }

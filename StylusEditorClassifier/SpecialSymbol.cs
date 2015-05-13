@@ -1,17 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StylusEditorClassifier
 {
+    /// <summary>
+    /// Symbols like: /*, */, //, :, (, etc.
+    /// </summary>
     class SpecialSymbol
     {
         public String Symbol { get; set; }
         public IncludeType Include { get; set; }
         public Boolean StartsWithZero { get; set; }
-        public List<String> StringNotStartsWith { get; set; }
+        /// <summary>
+        /// A collections of string beginnings which indicate that this symbol is not a special symbol.
+        /// </summary>
+        public List<String> UnsuitableStringBeginnigns { get; set; }
         /// <summary>
         /// A list of states in which symbol is valid. If current state is not in this list Symbol is not valid.
         /// </summary>

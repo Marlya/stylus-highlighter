@@ -398,19 +398,19 @@ namespace StylusEditorClassifier
             else if ((currentState == State.Default || currentState == State.Bracket)
                      &&
                      (
-                         Constants.Keywords.Contains(str.Trim().Trim(':'))
+                         Constants.CssKeys.Contains(str.Trim().Trim(':'))
                          ||
                          (str.Trim().StartsWith("-webkit-") &&
-                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-webkit-", "")))
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-webkit-", "")))
                          ||
                          (str.Trim().StartsWith("-moz-") &&
-                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-moz-", "")))
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-moz-", "")))
                          ||
                          (str.Trim().StartsWith("-o-") &&
-                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-o-", "")))
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-o-", "")))
                          ||
                          (str.Trim().StartsWith("-ms-") &&
-                          Constants.Keywords.Contains(str.Trim().Trim(':').Replace("-ms-", "")))
+                          Constants.CssKeys.Contains(str.Trim().Trim(':').Replace("-ms-", "")))
                          )
                 )
             {
@@ -478,7 +478,7 @@ namespace StylusEditorClassifier
                 return false;
             if (symbol.Include == IncludeType.Exclude && index == 0 && str.Length == symbol.Symbol.Length)
                 return false;
-            if (symbol.StringNotStartsWith != null && symbol.StringNotStartsWith.Any(str.StartsWith))
+            if (symbol.UnsuitableStringBeginnigns != null && symbol.UnsuitableStringBeginnigns.Any(str.StartsWith))
                 return false;
             return true;
         }

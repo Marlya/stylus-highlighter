@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace StylusEditorClassifier
 {
@@ -33,7 +30,7 @@ namespace StylusEditorClassifier
                 Symbol = "/*",
                 Include = IncludeType.IncludeToRight,
                 StartsWithZero = false, 
-                StringNotStartsWith = new List<string>{"'","\""},
+                UnsuitableStringBeginnigns = new List<string>{"'","\""},
                 NotValidStates = new List<State>{State.IsMultiComment, State.IsComment}
             },
             new SpecialSymbol()
@@ -66,7 +63,7 @@ namespace StylusEditorClassifier
             },
         };
 
-        public static readonly HashSet<String> Keywords = new HashSet<String>()
+        public static readonly HashSet<String> CssKeys = new HashSet<String>
         {
             "accelerator",
             "animation",
@@ -164,25 +161,6 @@ namespace StylusEditorClassifier
             "max-width",
             "min-height",
             "min-width",
-            "-moz-binding",
-            "-moz-border-radius",
-            "-moz-border-radius-topleft",
-            "-moz-border-radius-topright",
-            "-moz-border-radius-bottomright",
-            "-moz-border-radius-bottomleft",
-            "-moz-border-top-colors",
-            "-moz-border-right-colors",
-            "-moz-border-bottom-colors",
-            "-moz-border-left-colors",
-            "-moz-opacity",
-            "-moz-outline",
-            "-moz-outline-color",
-            "-moz-outline-style",
-            "-moz-outline-width",
-            "-moz-user-focus",
-            "-moz-user-input",
-            "-moz-user-modify",
-            "-moz-user-select",
             "opacity",
             "orphans",
             "outline",
