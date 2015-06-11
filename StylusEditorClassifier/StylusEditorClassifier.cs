@@ -70,8 +70,8 @@ namespace StylusEditorClassifier
                 }
 
                 var update = -1;
-                var newText = e.After.GetLineFromPosition(change.NewPosition).GetText();
-                var oldText = e.Before.GetLineFromPosition(change.OldPosition).GetText();
+                var newText = change.NewText;//e.After.GetLineFromPosition(change.NewPosition).GetText();
+                var oldText = change.OldText;//e.Before.GetLineFromPosition(change.OldPosition).GetText();
 
                 if (startMC != null && oldText.Contains("/*") && !newText.Contains("/*"))
                 {
