@@ -16,6 +16,8 @@ namespace StylusEditorClassifier
         public const string SingleLineCommentClassType = "stylus.singlelineComment";
         public const string MultiLineCommentClassType = "stylus.multilineComment";
 
+        public const string DarkSuffix = "_Dark";
+
         public static readonly IDictionary<VsTheme, ThemeColors> Themes = new Dictionary<VsTheme, ThemeColors>(3)
         {
             {VsTheme.Light, new ThemeColors()
@@ -47,18 +49,18 @@ namespace StylusEditorClassifier
         };
 
 
-        public static ThemeColors GetThemeColors()
-        {
-	        VsTheme currentTheme = ThemeUtil.GetCurrentTheme();
-	        if (Constants.Themes.ContainsKey(currentTheme))
-            {
-                return Constants.Themes[currentTheme];
-            }
-            else
-            {
-                return Constants.Themes[VsTheme.Blue];
-            }
-        }
+        //public static ThemeColors GetThemeColors()
+        //{
+        //    VsTheme currentTheme = ThemeUtil.GetCurrentTheme();
+        //    if (Constants.Themes.ContainsKey(currentTheme))
+        //    {
+        //        return Constants.Themes[currentTheme];
+        //    }
+        //    else
+        //    {
+        //        return Constants.Themes[VsTheme.Blue];
+        //    }
+        //}
 
 	    //public static readonly ThemeColors CurrentThemeColors = Themes[ThemeUtil.GetCurrentTheme()];
 

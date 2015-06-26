@@ -54,7 +54,24 @@ namespace StylusEditorClassifier
             this._registry = registry;
             this._buffer = buffer;
 
+            if (!this._buffer.Properties.ContainsProperty("Theme"))
+            {
+                this._buffer.Properties.AddProperty("Theme", ThemeUtil.GetCurrentTheme());
+            }
+
             this._buffer.Changed += BufferChanged;
+        }
+
+        private String GetThemeSuffix()
+        {
+            if ((VsTheme) this._buffer.Properties.GetProperty("Theme") == VsTheme.Dark)
+            {
+                return Constants.DarkSuffix;
+            }
+            else
+            {
+                return String.Empty;
+            }
         }
 
         private void BufferChanged(object sender, TextContentChangedEventArgs e)
@@ -198,7 +215,7 @@ namespace StylusEditorClassifier
                 Int32 startIndex = span.Start;
 
                 classifications.Add(new ClassificationSpan(new SnapshotSpan(span.Snapshot, new Span(startIndex, text.IndexOf("("))),
-                          _registry.GetClassificationType(Constants.FunctionClassType)));
+                          _registry.GetClassificationType(Constants.FunctionClassType + GetThemeSuffix())));
 
                 String[] parts = text.Substring(text.IndexOf("(")).Split(' ');
                 Int32 index = span.Start + text.IndexOf("(");
@@ -374,7 +391,7 @@ namespace StylusEditorClassifier
             if ((currentState != State.IsComment && currentState != State.IsMultiComment) &&
                 (str.Equals("(") || str.Equals(")")))
             {
-                classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
+                classificationType = _registry.GetClassificationType(Constants.DefaultClassType + GetThemeSuffix());
 
                 if (str.Equals("("))
                 {
@@ -394,7 +411,7 @@ namespace StylusEditorClassifier
             else if (currentState == State.Default &&
                      Constants.Keywords2.Contains(str.Trim().Trim('(').Trim('(').Trim(':')))
             {
-                classificationType = _registry.GetClassificationType(Constants.Keyword2ClassType);
+                classificationType = _registry.GetClassificationType(Constants.Keyword2ClassType + GetThemeSuffix());
             }
             else if ((currentState == State.Default || currentState == State.Bracket)
                      &&
@@ -415,7 +432,7 @@ namespace StylusEditorClassifier
                          )
                 )
             {
-                classificationType = _registry.GetClassificationType(Constants.KeywordClassType);
+                classificationType = _registry.GetClassificationType(Constants.KeywordClassType + GetThemeSuffix());
                 currentState = !str.Contains("\n")
                     ? (currentState == State.Bracket ? State.AfterKeywordAfterBracket : State.AfterKeyword)
                     : State.Default;
@@ -423,13 +440,13 @@ namespace StylusEditorClassifier
             else if (currentState != State.IsMultiComment &&
                      (str.Trim().StartsWith("//") || currentState == State.IsComment))
             {
-                classificationType = _registry.GetClassificationType(Constants.SingleLineCommentClassType);
+                classificationType = _registry.GetClassificationType(Constants.SingleLineCommentClassType + GetThemeSuffix());
                 currentState = !str.Contains("\n") ? State.IsComment : State.Default;
             }
             else if (currentState != State.IsComment &&
                      (currentState == State.IsMultiComment || str.StartsWith("/*")))
             {
-                classificationType = _registry.GetClassificationType(Constants.MultiLineCommentClassType);
+                classificationType = _registry.GetClassificationType(Constants.MultiLineCommentClassType + GetThemeSuffix());
                 currentState = !str.Contains("*/") ? State.IsMultiComment : State.Default;
                 if (str.StartsWith("/*"))
                 {
@@ -443,12 +460,12 @@ namespace StylusEditorClassifier
             }
             else if (currentState == State.AfterKeyword || currentState == State.AfterKeywordAfterBracket)
             {
-                classificationType = _registry.GetClassificationType(Constants.ContentClassType);
+                classificationType = _registry.GetClassificationType(Constants.ContentClassType + GetThemeSuffix());
                 currentState = !str.Contains("\n") ? currentState : State.Default;
             }
             else
             {
-                classificationType = _registry.GetClassificationType(Constants.DefaultClassType);
+                classificationType = _registry.GetClassificationType(Constants.DefaultClassType + GetThemeSuffix());
             }
 
             #endregion
