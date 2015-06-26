@@ -64,6 +64,8 @@
     <Compile Include="StylusEditorClassifierType.cs" />
     <Compile Include="StylusEditorClassifier.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ThemeColors.cs" />
+    <Compile Include="VsTheme.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="source.extension.vsixmanifest">

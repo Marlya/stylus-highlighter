@@ -5,6 +5,8 @@ using Microsoft.VisualStudio.Utilities;
 
 namespace StylusEditorClassifier
 {
+  
+
     #region Format definition
     /// <summary>
     /// Defines an editor format for the StylusEditorClassifier type that has a purple background
@@ -23,7 +25,7 @@ namespace StylusEditorClassifier
         public StylusEditorClassifierFormat()
         {
             this.DisplayName = "StylusEditorClassifier"; //human readable version of the name
-            this.ForegroundColor = Colors.Brown;
+            this.ForegroundColor = Constants.GetThemeColors().Default; //Colors.Brown;
         }
     }
 
@@ -37,7 +39,7 @@ namespace StylusEditorClassifier
         public KeywordClassificationFormat()
         {
             this.DisplayName = "Stylus Keyword";
-            this.ForegroundColor = Colors.OrangeRed;
+            this.ForegroundColor = Constants.GetThemeColors().Keyword; //Colors.OrangeRed;
         }
     }
 
@@ -51,7 +53,7 @@ namespace StylusEditorClassifier
         public Keyword2ClassificationFormat()
         {
             this.DisplayName = "Stylus Keyword 2";
-            this.ForegroundColor = Colors.MediumSlateBlue;
+            this.ForegroundColor = Constants.GetThemeColors().Keyword2; //Colors.MediumSlateBlue;
         }
     }
 
@@ -65,7 +67,7 @@ namespace StylusEditorClassifier
         public ContentClassificationFormat()
         {
             this.DisplayName = "Stylus Content";
-            this.ForegroundColor = Colors.Blue;
+            this.ForegroundColor = Constants.GetThemeColors().Content; //Colors.Blue;
         }
     }
 
@@ -79,7 +81,7 @@ namespace StylusEditorClassifier
         public FunctionClassificationFormat()
         {
             this.DisplayName = "Stylus Function";
-            this.ForegroundColor = Colors.Teal;
+            this.ForegroundColor = Constants.GetThemeColors().Function; //Colors.Teal;
         }
     }
 
@@ -93,7 +95,7 @@ namespace StylusEditorClassifier
         public CommentClassificationFormat()
         {
             this.DisplayName = "Stylus Comment";
-            this.ForegroundColor = Colors.Green;
+            this.ForegroundColor = Constants.GetThemeColors().Comment; //Colors.Green;
         }
     }
 
@@ -107,7 +109,7 @@ namespace StylusEditorClassifier
         public MultiLineCommentClassificationFormat()
         {
             this.DisplayName = "Stylus Multiline Comment";
-            this.ForegroundColor = Colors.Green;
+            this.ForegroundColor = Constants.GetThemeColors().Comment; //Colors.Green;
         }
     }
     #endregion //Format definition

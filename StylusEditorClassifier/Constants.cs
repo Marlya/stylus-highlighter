@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Windows.Media;
 
 namespace StylusEditorClassifier
 {
@@ -15,6 +16,50 @@ namespace StylusEditorClassifier
         public const string SingleLineCommentClassType = "stylus.singlelineComment";
         public const string MultiLineCommentClassType = "stylus.multilineComment";
 
+        public static readonly IDictionary<VsTheme, ThemeColors> Themes = new Dictionary<VsTheme, ThemeColors>(3)
+        {
+            {VsTheme.Light, new ThemeColors()
+            {
+                Comment = Colors.Green,
+                Content = Colors.Blue,
+                Default = Colors.Brown,
+                Function = Colors.Teal,
+                Keyword = Colors.OrangeRed,
+                Keyword2 = Colors.MediumSlateBlue
+            }},
+            {VsTheme.Dark, new ThemeColors(){
+                Comment = Colors.Aquamarine,
+                Content = Colors.SkyBlue,
+                Default = Colors.Bisque,
+                Function = Colors.Aqua,
+                Keyword = Colors.LightSalmon,
+                Keyword2 = Colors.Plum
+            }},
+            {VsTheme.Blue, new ThemeColors(){
+                Comment = Colors.Green,
+                Content = Colors.Blue,
+                Default = Colors.Brown,
+                Function = Colors.Teal,
+                Keyword = Colors.OrangeRed,
+                Keyword2 = Colors.MediumSlateBlue
+            }}
+            
+        };
+
+
+        public static ThemeColors GetThemeColors()
+        {
+            if (Constants.Themes.ContainsKey(ThemeUtil.GetCurrentTheme()))
+            {
+                return Constants.Themes[ThemeUtil.GetCurrentTheme()];
+            }
+            else
+            {
+                return Constants.Themes[VsTheme.Blue];
+            }
+        }
+
+        //public static readonly ThemeColors CurrentThemeColors = Themes[ThemeUtil.GetCurrentTheme()];
 
         public static readonly List<SpecialSymbol> SpecialSymbols = new List<SpecialSymbol>
         {

@@ -53,6 +53,7 @@ namespace StylusEditorClassifier
         {
             this._registry = registry;
             this._buffer = buffer;
+
             this._buffer.Changed += BufferChanged;
         }
 
