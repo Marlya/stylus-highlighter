@@ -49,9 +49,10 @@ namespace StylusEditorClassifier
 
         public static ThemeColors GetThemeColors()
         {
-            if (Constants.Themes.ContainsKey(ThemeUtil.GetCurrentTheme()))
+	        VsTheme currentTheme = ThemeUtil.GetCurrentTheme();
+	        if (Constants.Themes.ContainsKey(currentTheme))
             {
-                return Constants.Themes[ThemeUtil.GetCurrentTheme()];
+                return Constants.Themes[currentTheme];
             }
             else
             {
@@ -59,7 +60,7 @@ namespace StylusEditorClassifier
             }
         }
 
-        //public static readonly ThemeColors CurrentThemeColors = Themes[ThemeUtil.GetCurrentTheme()];
+	    //public static readonly ThemeColors CurrentThemeColors = Themes[ThemeUtil.GetCurrentTheme()];
 
         public static readonly List<SpecialSymbol> SpecialSymbols = new List<SpecialSymbol>
         {
