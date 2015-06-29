@@ -30,12 +30,12 @@ namespace StylusEditorClassifier
                 Keyword2 = Colors.MediumSlateBlue
             }},
             {VsTheme.Dark, new ThemeColors(){
-                Comment = Colors.Aquamarine,
-                Content = Colors.SkyBlue,
+                Comment = Colors.MediumSeaGreen,
+                Content = Colors.CornflowerBlue,
                 Default = Colors.Bisque,
                 Function = Colors.Aqua,
-                Keyword = Colors.LightSalmon,
-                Keyword2 = Colors.Plum
+                Keyword = Colors.DarkOrange,
+                Keyword2 = Colors.Orchid
             }},
             {VsTheme.Blue, new ThemeColors(){
                 Comment = Colors.Green,
