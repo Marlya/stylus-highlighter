@@ -221,3 +221,6 @@ Syn.Seg.Pdb.Web/Scripts/
 Syn.Seg.Pdb.Web/App_Data/*.xml
 *.xlsx
 Syn.Seg.Pdb.Web/App_Data/
+
+
+.vs*/
